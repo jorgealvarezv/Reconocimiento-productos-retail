@@ -12,10 +12,8 @@ def ocr_inference(args):
     for result in results:
         palabras=[]
         for i in result:
-            if len(i.split(' '))>1:
-                palabras+=i.replace("-"," ").replace(","," ").split(' ')
-            else:
-                palabras.append(i)
+            palabras+=i.replace("-"," ").replace("/"," ").replace("."," ").replace(","," ").split(' ')
+        
         final.append(palabras)
     return final,tiempo,tiempo_init,imgs
 
