@@ -309,7 +309,7 @@ def parse_args(mMain=True):
     import argparse
     parser = init_args()
     parser.add_help = mMain
-    parser.add_argument("--lang", type=str, default='ch')
+    parser.add_argument("--lang", type=str, default='es')
     parser.add_argument("--det", type=str2bool, default=True)
     parser.add_argument("--rec", type=str2bool, default=True)
     parser.add_argument("--type", type=str, default='ocr')
@@ -645,10 +645,10 @@ def test(args):
     if args.type == 'ocr':
         engine = PaddleOCR(**(args.__dict__))
    
-
+    imgs = []
     for img_path in image_file_list:
         img_name = os.path.basename(img_path).split('.')[0]
-        
+        imgs.append(img_name)
         if args.type == 'ocr':
             start = time.time()
             result = engine.ocr(img_path,
@@ -662,5 +662,5 @@ def test(args):
                     res = result[idx]
                     resultados=[line[1][0].lower() for line in res if(line[1][1]>0.5)]
                     result_final.append(resultados)
-    return result_final,time_final
+    return result_final,time_final, imgs
                        
