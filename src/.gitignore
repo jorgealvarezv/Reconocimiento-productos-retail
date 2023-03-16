@@ -1,1 +1,9 @@
-bounding_boxes/
+test_server/
+*.csv
+*.log
+*.webp
+*.xlsx
+*.xlsx#
+.memoria/ 
+memoria_ja/
+bounding_boxes/ 
