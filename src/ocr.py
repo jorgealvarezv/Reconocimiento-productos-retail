@@ -85,10 +85,6 @@ if __name__ == '__main__':
     dataset='data/text_products.csv'
     dataframe = pd.read_csv(dataset)
     
-    palabras=['cardioaspirina', 'acido', 'acetilsalicilico', '100', 'mg', '20', 'comprimidos', 'recubrimiento', 'enterico', 'bayer']
-    p=['cardioaspirinai0oec', 'acidoacetilsalicilico100mg', '20', 'comprimidos', 'con', 'recubrimiento', 'enterico', 'antiagregante', 'plaquetario']
-    print(results[0])
-    score=ocr_match(palabras,results[0],0.8)
     
     for result,time,img in zip(results,tiempo,imgs):
         print("----"*35)
@@ -96,14 +92,19 @@ if __name__ == '__main__':
         print(result)
         print("----"*35)
         start_match = t.time()
+        skus=[]
         for (sku, text) in zip(dataframe['SKU'], dataframe['Text']):
                 sku = str(sku).zfill(6)
                 text = ast.literal_eval(text)
                 score=ocr_match(text,result,0.8)
-                if(score>8):
-                    print("El producto con SKU: ",sku," tiene un score de ",score)
-                    print("----"*35)
+                if(score!=0):
+                    skus.append((sku,score))
         end=t.time()
         print("Tiempo de match: ",end-start_match)
+        #ordena skus por score de mayor a menor e imprime el primero
+        skus.sort(key=lambda tup: tup[1],reverse=True)
+        print(f"La imagen {img} coincide con el SKU ",skus[0][0])
+        print(f"Tiempo total fue {time+end-start_match}")
+        
 
 
