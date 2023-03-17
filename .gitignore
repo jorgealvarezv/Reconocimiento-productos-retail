@@ -7,7 +7,7 @@ test_server/
 .memoria/ 
 memoria_ja/
 bounding_boxes/ 
-PaddleOCR/memoria/
+src/PaddleOCR/memoria/
 __pycache__/
 *.jpg
 *.png
