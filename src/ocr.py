@@ -1,4 +1,4 @@
-import PaddleOCR.paddleocr as ocr
+import src.PaddleOCR.paddleocr as ocr
 from difflib import SequenceMatcher
 import pandas as pd
 import ast
