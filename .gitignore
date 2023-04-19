@@ -4,10 +4,12 @@ test_server/
 *.webp
 *.xlsx
 *.xlsx#
-.memoria/ 
+memoria/ 
 memoria_ja/
 bounding_boxes/ 
 src/PaddleOCR/memoria/
 __pycache__/
 *.jpg
 *.png
+.venv
+models/
