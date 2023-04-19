@@ -454,7 +454,7 @@ class PaddleOCR(predict_system.TextSystem):
         assert params.ocr_version in SUPPORT_OCR_MODEL_VERSION, "ocr_version must in {}, but get {}".format(
             SUPPORT_OCR_MODEL_VERSION, params.ocr_version)
         params.use_gpu = check_gpu(params.use_gpu)
-        logger.info('use_gpu: {}'.format(params.use_gpu))
+        #logger.info('use_gpu: {}'.format(params.use_gpu))
 
         # if not params.show_log:
         #     logger.setLevel(logging.INFO)
