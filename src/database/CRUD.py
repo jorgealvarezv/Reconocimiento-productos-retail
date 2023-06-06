@@ -392,6 +392,8 @@ def skusInference(cursor,local,categoria,id_modulacion,folder):
     skus_ocr=[]
     skus_clip=[]
     skus_folder=[]
+    faltante_ocr=[]
+    faltante_clip=[]
     for sku in skus:
         #see if sku has ocr
 
@@ -400,26 +402,31 @@ def skusInference(cursor,local,categoria,id_modulacion,folder):
     for sku in skus_folder:
         if(len(wordsOfSku(cursor,sku)) != 0):
             skus_ocr.append(sku)
+        else:
+            faltante_ocr.append(sku)
         #see if sku has clip
         if(len(descriptionOfSku(cursor,sku)) != 0):
             skus_clip.append(sku)
+        else:
+            faltante_clip.append(sku)
     #copia las carpetas de sku_folder a una carpeta dentro de img/testing/{id_modulacion}/{categoria} (creando las carpetas si no existen):
     # for sku in skus_folder:
     #     shutil.copytree(folder+str(sku).zfill(6), '/home/jorge/U/memoria-jorgealvarez/img/testing/'+str(id_modulacion)+'/'+categoria+'/'+str(sku).zfill(6))
-
+    print(faltante_ocr)
+    print(faltante_clip)
     
     return skus,skus_folder,skus_ocr ,skus_clip 
 def wordsOfSkuToCsv(cursor,list_of_skus):
     #list of skus to csv
-    with open('ocr_medicamentos.csv', 'w', newline='') as csvfile:
-        fieldnames = ['sku', 'words']
+    with open('data/ocr_medicamentos.csv', 'w', newline='') as csvfile:
+        fieldnames = ['SKU', 'Text']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
         for sku in list_of_skus:
             writer.writerow({'sku': sku, 'words': wordsOfSku(cursor,sku)})
 def descriptionOfSkuToCsv(cursor,list_of_skus):
     #list of skus to csv
-    with open('clip_medicamentos.csv', 'w', newline='') as csvfile:
+    with open('data/clip_medicamentos.csv', 'w', newline='') as csvfile:
         fieldnames = ['sku', 'description']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
@@ -439,7 +446,9 @@ if __name__ == '__main__':
 
     #print(desc)
     skus,skus_folder,skus_ocr,skus_clip=skusInference(cursor,3,'OAI FARMA', 'M10-OAI-F', '/home/jorge/U/memoria-jorgealvarez/img/bounding_boxes/')
-    #wordsOfSkuToCsv(cursor,skus_ocr)
+    skus_clip.sort()
+    skus_ocr.sort()
+    wordsOfSkuToCsv(cursor,skus_ocr)
     descriptionOfSkuToCsv(cursor,skus_clip)
     #createPlanograma(conexion,cursor,3)
     closeConexion(conexion,cursor)
