@@ -37,7 +37,7 @@ def inference(model,preprocess,device,img,df):
 
     skus = df['sku'].tolist()
     labels = df['description'].tolist()
-    
+    largo_labels=len(labels)
     text = clip.tokenize(labels).to(device)
 
     with torch.no_grad():
@@ -47,10 +47,13 @@ def inference(model,preprocess,device,img,df):
     image_features /= image_features.norm(dim=-1, keepdim=True)
     text_features /= text_features.norm(dim=-1, keepdim=True)
     similarity = (100.0 * image_features @ text_features.T).softmax(dim=-1)
-    value, indice = similarity[0].topk(1)
+    values, indices = similarity[0].topk(largo_labels)
     tiempo_stop = time.time()
     tiempo_inferencia=tiempo_stop-tiempo_start
-    return skus[indice],100 * value.item(),tiempo_inferencia 
+    skus_pred=[skus[indice] for indice in indices]
+    values_pred=[100 * value.item() for value in values]
+    #print(skus_pred)
+    return skus[indices[0]],100 * values[0].item(),tiempo_inferencia,skus_pred,values_pred 
 
 
 if __name__ == '__main__':
