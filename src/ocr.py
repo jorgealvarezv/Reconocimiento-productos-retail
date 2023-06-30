@@ -10,6 +10,10 @@ import re
 # nltk.download('stopwords')
 # nltk.download('punkt')
 ocr_args = paddleocr.parse_args(mMain=True)
+SCORE_FIRST = 5
+SCORE_SECOND = 3
+SCORE_THIRD = 1
+TRESHOLD = 0.68
 
 
 def ocr_load_model():
@@ -25,7 +29,7 @@ def ocr_inference(engine, img, treshold):
                         cls=ocr_args.use_angle_cls)
     stop = t.time()
     textos = [line[1][0].lower().replace("-",
-              " ").replace("/"," ").replace(".",
+              " ").replace("/", " ").replace(".",
               " ").replace(",", " ").replace("'", "")
               for sublist in result for line in sublist if (line[1][1] > treshold)]
     textos_final = [palabra
@@ -48,55 +52,96 @@ def ocr_inference(engine, img, treshold):
 
 
 def ocr_match(list_words_bd, ocr_words, threshold):
-
+    threshold = TRESHOLD
     n_words_bd = len(list_words_bd)
     n_ocr_words = len(ocr_words)
     score = 0
     index_bd = 0
+    # print(list_words_bd)
 
     while index_bd < n_words_bd:
 
         index_ocr = 0
 
         while index_ocr < n_ocr_words:
-            palabra_bd = list_words_bd[index_bd]
+            # if (index_bd == 0):
+            #     print(index_bd, len(
+            #         list_words_bd[index_bd]), len(ocr_words[2]))
+            palabra_bd = str(list_words_bd[index_bd])
             largo_palabra_bd = len(palabra_bd)
-            palabra_ocr = ocr_words[index_ocr]
+            palabra_ocr = str(ocr_words[index_ocr])
             largo_palabra_ocr = len(palabra_ocr)
+            # if palabra_bd == 'prematuros' and palabra_ocr == 'rematuros':
+            #     print(palabra_bd, palabra_ocr,
+            #           largo_palabra_bd, largo_palabra_ocr)
+
+            # if (palabra_ocr == '1' and index_bd == 0):
+            #     print(
+            #         f"Revisando match con {palabra_ocr} y {palabra_bd},index bd {index_bd} {list_words_bd}")
             if largo_palabra_bd == largo_palabra_ocr:
+
                 if palabra_bd == palabra_ocr:
                     if (index_bd == 0 or index_bd == 1):
-                        score += 4
+                        score += SCORE_FIRST
                         break
                     elif (index_bd == 2 or index_bd == 3):
-                        score += 2
+                        score += SCORE_SECOND
                         break
                     else:
-                        score += 1
+                        score += SCORE_THIRD
                         break
-            else:
-
-                matcher = SequenceMatcher(None, palabra_bd, palabra_ocr)
+                else:
+                    matcher = SequenceMatcher(None, palabra_bd, palabra_ocr)
                 match = matcher.find_longest_match(0,
                                                    largo_palabra_bd,
                                                    0,
                                                    largo_palabra_ocr)
                 cadena_mas_larga = match.size
                 if cadena_mas_larga/largo_palabra_bd > threshold:
+                    # print(palabra_bd, palabra_ocr,
+                    #       largo_palabra_bd, cadena_mas_larga)
 
                     if (index_bd == 0 or index_bd == 1):
-                        score += 4
+                        score += SCORE_FIRST
                         break
                     elif (index_bd == 2 or index_bd == 3):
-                        score += 2
+                        score += SCORE_SECOND
                         break
                     else:
-                        score += 1
+                        score += SCORE_THIRD
                         break
+
+            else:
+                if len(palabra_ocr) / len(palabra_bd) <= 3:
+
+                    matcher = SequenceMatcher(None, palabra_bd, palabra_ocr)
+                    match = matcher.find_longest_match(0,
+                                                       largo_palabra_bd,
+                                                       0,
+                                                       largo_palabra_ocr)
+                    cadena_mas_larga = match.size
+                    # if palabra_bd == 'prematuros' and palabra_ocr == 'rematuros':
+                    #     print(palabra_bd, palabra_ocr,
+                    #           largo_palabra_bd, cadena_mas_larga)
+                    if cadena_mas_larga/largo_palabra_bd > threshold:
+                        # print(palabra_bd, palabra_ocr,
+                        #       largo_palabra_bd, cadena_mas_larga)
+
+                        if (index_bd == 0 or index_bd == 1):
+                            score += SCORE_FIRST
+                            break
+                        elif (index_bd == 2 or index_bd == 3):
+                            score += SCORE_SECOND
+                            break
+                        else:
+                            score += SCORE_THIRD
+                            break
             index_ocr += 1
         index_bd += 1
 
     return score
+
+
 def ocr_match_2(list_words_bd, ocr_words, threshold):
     score = 0
 
@@ -113,22 +158,25 @@ def ocr_match_2(list_words_bd, ocr_words, threshold):
                     break
             else:
                 matcher = SequenceMatcher(None, palabra_bd, palabra_ocr)
-                match = matcher.find_longest_match(0, largo_palabra_bd, 0, largo_palabra_ocr)
+                match = matcher.find_longest_match(
+                    0, largo_palabra_bd, 0, largo_palabra_ocr)
                 cadena_mas_larga = match.size
 
-                if cadena_mas_larga/largo_palabra_bd > threshold:
+                if cadena_mas_larga/largo_palabra_bd > 0.6:
+                    print(palabra_bd, palabra_ocr)
                     match_found = True
                     break
 
         if match_found:
             if index_bd in [0, 1]:
-                score += 4
+                score += SCORE_FIRST
             elif index_bd in [2, 3]:
-                score += 2
+                score += SCORE_SECOND
             else:
-                score += 1
+                score += SCORE_THIRD
 
     return score
+
 
 if __name__ == '__main__':
     results, tiempo, init, imgs = ocr_inference(args)

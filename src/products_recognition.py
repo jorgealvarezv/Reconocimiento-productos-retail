@@ -18,8 +18,14 @@ import seaborn as sns
 import numpy as np
 from sklearn.metrics import roc_curve, auc
 
+MAX_DISTANCE = 2
+MIN_SCORE = 4
+FILTRO_OCR = 10
+FILTRO_CLIP = 10
+TRESHOLD_OCR = 0.8
 
-def matriz_confusion(diccionario, clip=True):
+
+def matriz_confusion(diccionario, name="matriz_confusion_clip"):
     # Paso 1: crear listas de valores reales y predicciones
     valores_reales = []
     predicciones = []
@@ -29,6 +35,7 @@ def matriz_confusion(diccionario, clip=True):
 
     # Paso 2: obtener todas las etiquetas
     etiquetas = list(set(valores_reales + predicciones))
+
     etiquetas.sort()
     # Paso 3: crear la matriz de confusión
     matriz = [[0 for _ in etiquetas] for _ in etiquetas]
@@ -40,10 +47,10 @@ def matriz_confusion(diccionario, clip=True):
         matriz[i][j] += 1
     matriz = pd.DataFrame(matriz, columns=etiquetas, index=etiquetas)
     # csv y xlsx
-    ruta_archivo = 'matriz_confusion_clip.csv'
-    matriz.to_csv(ruta_archivo, index=False)
-    ruta_archivo = 'matriz_confusion_clip.xlsx'
-    matriz.to_excel(ruta_archivo, index=False)
+    # ruta_archivo = 'matriz_confusion_clip.csv'
+    # matriz.to_csv(ruta_archivo, index=False)
+    # ruta_archivo = 'matriz_confusion_clip.xlsx'
+    # matriz.to_excel(ruta_archivo, index=False)
 
     # Calcular el tamaño de la figura
     fig_width = 0.5 * len(matriz.columns)
@@ -72,19 +79,16 @@ def matriz_confusion(diccionario, clip=True):
     ax.xaxis.label.set_size(32)
     ax.yaxis.label.set_size(32)
     # set title
-    ax.set_title("Matriz de Confusión")
+    title = "Matriz Confusion"+name.replace("_", " ")
+    ax.set_title(title)
     ax.title.set_size(64)
 
     # Mostrar el mapa de calor
-
-    if clip:
-        plt.savefig('matriz_clip.png', dpi=300)
-    else:
-        plt.savefig('matriz_ocr.png', dpi=300)
+    plt.savefig(f'matriz_confusion_{name}.png', dpi=300)
     return matriz
 
 
-def matriz_confusion_comprimida(diccionario, clip=True):
+def matriz_confusion_comprimida(diccionario, name="matriz_confusion_clip"):
     # Crear la matriz de confusión comprimida
     matriz_ = [[0, 0], [0, 0]]  # [TP, FP], [FN, TN]
 
@@ -116,19 +120,18 @@ def matriz_confusion_comprimida(diccionario, clip=True):
     ax.set_ylabel('Valor Real')
     ax.xaxis.label.set_size(12)
     ax.yaxis.label.set_size(12)
-    ax.set_title("Matriz de Confusión")
+    title = "Matriz Confusion" + name.replace("_", " ")
+    ax.set_title(title)
     plt.tight_layout()
 
     # Guardar el gráfico en un archivo
-    if clip:
-        plt.savefig('matriz_confusion_clip_comprimida.png', dpi=300)
-    else:
-        plt.savefig('matriz_confusion_ocr_comprimida.png', dpi=300)
+
+    plt.savefig(f'matriz_confusion_{name}.png', dpi=300)
 
     return matriz_
 
 
-def generar_curvas_roc(matriz_confusion):
+def generar_curvas_roc(matriz_confusion, name="curva_roc_clip"):
     # Calcular las curvas ROC
     tp = matriz_confusion[0][0]  # Verdaderos positivos
     fp = matriz_confusion[0][1]  # Falsos positivos
@@ -155,13 +158,14 @@ def generar_curvas_roc(matriz_confusion):
     # print("fpr: ", fpr)
     plt.plot(fpr, tpr, linestyle='--')
     # Title
-    plt.title('ROC Plot')
+    title = "Curva ROC"+name.replace("_", " ")
+    plt.title(title)
     # Axis labels
     plt.xlabel('False Positive Rate')
     plt.ylabel('True Positive Rate')
     # Show legend
     plt.legend()
-    plt.savefig('curva_roc.png', dpi=300)
+    plt.savefig(f'curva_roc_{name}.png', dpi=300)
 
 
 def clip_recognition(csv_path, images_path, imgs, model_name):
@@ -222,41 +226,56 @@ def clip_filter(csv_path, clip_load, img, results=5):
     return clip.inference(model, preprocess, device, img, df)[3][:results]
 
 
-def ocr_filter(img, dataframe, model, results=5):
+def ocr_filter(img, dataframe, model, results=FILTRO_OCR):
     """Uso de ocr que recibe todas las imagenes y devuelve la cantidad dada de resultados"""
 
-    words, _ = ocr.ocr_inference(model, img, 0)
+    words, _ = ocr.ocr_inference(model, img, TRESHOLD_OCR)
+    # print(words)
     sku = int(img.split('/')[-2])
-
+    better_score = 0
     skus = []
     for (sku, text) in zip(dataframe['SKU'], dataframe['Text']):
         sku = str(sku).zfill(6)
         text = ast.literal_eval(text)
-        score = ocr.ocr_match_2(text, words, 0.8)
-        if (score != 0):
-            skus.append((sku, score))
+        score = ocr.ocr_match(text, words, TRESHOLD_OCR)
+        # print(sku, score)
+        if score > better_score:
+            better_score = score
+        # if score >= better_score - MAX_DISTANCE and score >= MIN_SCORE:
+        skus.append((sku, score))
+        # print(sku, score)
+    skus = [(sku, score) for (sku, score) in skus if score >=
+            better_score - MAX_DISTANCE and score >= MIN_SCORE]
+    # print(skus)
     skus.sort(key=lambda tup: tup[1], reverse=True)
     # print(skus)
     if (len(skus) == 0):
-        return 0
+        return []
     filtro = [int(sku) for sku, _ in skus]
     return filtro[:results]
 
 
 def ocr_single_recognition(img, dataframe, model):
     """with a img and df ocr do the match"""
-    words, _ = ocr.ocr_inference(model, img, 0)
+    words, _ = ocr.ocr_inference(model, img, TRESHOLD_OCR)
+    # print(words)
     sku = int(img.split('/')[-2])
 
     skus = []
+    better_score = 0
     for (sku, text) in zip(dataframe['SKU'], dataframe['Text']):
         sku = str(sku).zfill(6)
         text = ast.literal_eval(text)
-        score = ocr.ocr_match_2(text, words, 0.8)
-        if (score != 0):
-            skus.append((sku, score))
+
+        score = ocr.ocr_match(text, words, TRESHOLD_OCR)
+        if score > better_score:
+            better_score = score
+        # if score >= better_score - MAX_DISTANCE and score >= MIN_SCORE:
+        skus.append((sku, score))
+    skus = [(sku, score) for (sku, score) in skus if score >=
+            better_score - MAX_DISTANCE and score >= MIN_SCORE]
     skus.sort(key=lambda tup: tup[1], reverse=True)
-    print(skus)
+    # print(skus)
     if (len(skus) == 0):
         return 0
     return skus[0][0]
@@ -301,7 +320,7 @@ def ocr_recognition(images_path, imgs, dataframe):
         end = t.time()
         # print("Tiempo de match: ", end-start_match)
         tiempo_match.append(end-start_match)
-    matriz_ocr = matriz_confusion(dict_resultados_ocr, False)
+    matriz_ocr = matriz_confusion(dict_resultados_ocr, "solo_ocr")
     matriz_comprimida = matriz_confusion_comprimida(dict_resultados_ocr, False)
     generar_curvas_roc(matriz_comprimida)
     # grafico_matriz_confusion(matriz_ocr, dict_resultados_ocr, False)
@@ -325,9 +344,115 @@ def ocr_recognition(images_path, imgs, dataframe):
         [x[1] for x in resultados_ocr])+sum(tiempo_match))/len(resultados_ocr))
 
 
+def only_clip(imgs, csv_clip, model_clip, dict):
+    model, preprocess, device = model_clip
+    correctos = 0
+    cantidad_imagenes = len(imgs)
+    for img in imgs:
+        results = clip_filter(
+            csv_clip, (model, preprocess, device), img, 1)
+        sku_real = int(img.split('/')[-2])
+        predict = results[0]
+        if (predict == sku_real):
+            correctos += 1
+        dict[sku_real].append(int(predict))
+    print(
+        f"Porcentaje de imagenes correctas: {100*correctos/cantidad_imagenes}%")
+    return dict
+    # return dict, correctos/cantidad_imagenes
+
+
+def only_ocr(imgs, csv_ocr, model_ocr, dict):
+    """recognition with ocr filter and clip"""
+    df_ocr = pd.read_csv(csv_ocr)
+    correctos = 0
+    cantidad_imagenes = len(imgs)
+    for img in imgs:
+        results = ocr_filter(img, df_ocr, model_ocr, results=1)
+        sku_real = int(img.split('/')[-2])
+        if results == []:
+            predict = 0
+        else:
+            predict = results[0]
+        if predict == sku_real:
+            correctos += 1
+        dict[sku_real].append(int(predict))
+    print(
+        f"Porcentaje de imagenes correctas: {100*correctos/cantidad_imagenes}%")
+    return dict
+
+
+def recognition_1(imgs, csv_clip, csv_ocr, model_clip, model_ocr, dict):
+    """recognition with clip filter and ocr"""
+    df_ocr = pd.read_csv(csv_ocr)
+    model, preprocess, device = model_clip
+    correctos = 0
+    in_filter = 0
+    cantidad_imagenes = len(imgs)
+    for img in imgs:
+        results = clip_filter(
+            csv_clip, (model, preprocess, device), img, FILTRO_CLIP)
+        sku_real = int(img.split('/')[-2])
+        # create a subdataset ocr with the results:
+
+        subdataset_ocr = df_ocr[df_ocr['SKU'].isin(results)]
+        if not subdataset_ocr.empty:
+            predict = ocr_single_recognition(img, subdataset_ocr, model_ocr)
+        else:
+            predict = ocr_single_recognition(img, df_ocr, model_ocr)
+            # print("filtro no encontro resultados, se usa el dataset completo")
+        # print(predict)
+        if int(predict) == sku_real:
+            correctos += 1
+        if sku_real in results:
+            in_filter += 1
+        dict[sku_real].append(int(predict))
+    print(
+        f"Porcentaje de imagenes en el filtro: {100*in_filter/cantidad_imagenes}%")
+    print(
+        f"Porcentaje de imagenes correctas: {100*correctos/cantidad_imagenes}%")
+    return dict
+
+
+def recognition_2(imgs, csv_clip, csv_ocr, model_clip, model_ocr, dict):
+    """recognition with ocr filter and clip"""
+    df_ocr = pd.read_csv(csv_ocr)
+    model, preprocess, device = model_clip
+    correctos = 0
+    in_filter = 0
+    cantidad_imagenes = len(imgs)
+    for img in imgs:
+        results = ocr_filter(img, df_ocr, model_ocr, results=FILTRO_OCR)
+        # print(results)
+        sku_real = int(img.split('/')[-2])
+        # create a subdataset ocr with the results:
+        subdataset_clip = pd.read_csv(csv_clip)
+        # print(results)
+        subdataset_clip = subdataset_clip[subdataset_clip['sku'].isin(results)]
+        # print(subdataset_clip)
+        # subdataset_clip = subdataset_clip[subdataset_clip['sku'].isin(results)]
+        if not subdataset_clip.empty:
+            predict = clip_single_recognition(subdataset_clip, img, model_clip)
+        else:
+            predict = clip_single_recognition(pd.read_csv(csv_clip),
+                                              img, model_clip)
+            # print("filtro no encontro resultados, se usa el dataset completo")
+        # print(predict)
+        if int(predict) == sku_real:
+            correctos += 1
+        if sku_real in results:
+            in_filter += 1
+        dict[sku_real].append(int(predict))
+    print(
+        f"Porcentaje de imagenes en el filtro: {100*in_filter/cantidad_imagenes}%")
+    print(
+        f"Porcentaje de imagenes correctas: {100*correctos/cantidad_imagenes}%")
+    return dict
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='ViT-B/32',
+    parser.add_argument('--model', type=str, default='RN50',
                         help='model name or path to model')
     parser.add_argument('--images', type=str, default='img/gondolas/',
                         help='input image to perform inference on')
@@ -340,82 +465,156 @@ def main():
     parser.add_argument('--image_dir', type=str, default='bounding_boxes/',
                         help='path to images')
     args = parser.parse_args()
-    images = f'{args.images}M10-OAI-F.OAI FARMA/'
+    # images = f'{args.images}2P-A-BAJO.ALIMENTO/'
+    # images = f'{args.images}M10-OAI-F.OAI FARMA/'
+    images = f'{args.images}1M5-RF.BIENESTAR SEXUAL/'
     imgs = glob.glob(images + '**/*.webp', recursive=True)
+    cantidad_imagenes = len(imgs)
     # Clip
-    # read labels will be a df with sku, description to clip:
-    df = pd.read_csv('data/clip_medicamentos.csv')
-    dataset_clip = 'data/clip_medicamentos.csv'
-    dataset_ocr = 'data/ocr_medicamentos.csv'
+    dataset_clip = 'data/clip_BIENESTAR.csv'
+    dataset_ocr = 'data/ocr_BIENESTAR.csv'
+    # dataset_clip = 'data/clip_ALIMENTO.csv'
+    # dataset_ocr = 'data/ocr_ALIMENTO.csv'
+    # dataset_clip = 'data/clip_medicamentos.csv'
+    # dataset_ocr = 'data/ocr_medicamentos.csv'
     df_ocr = pd.read_csv(dataset_ocr)
     # clip_recognition(dataset_clip, args.images, imgs, args.model)
     tiemop_carga = t.time()
     model, preprocess, device = clip.load_model(args.model)
     tiempo_carga_stop = t.time()
-    print("Tiempo de carga del modelo CLIP: ", tiempo_carga_stop-tiemop_carga)
-    cantidad_imagenes = len(imgs)
-    in_filter = 0
-    correctos = 0
+    print("Tiempo de carga del modelo CLIP: ",
+          tiempo_carga_stop-tiemop_carga)
     tiemop_carga = t.time()
     engine = ocr.ocr_load_model()
     tiempo_carga_stop = t.time()
     print("Tiempo de carga del modelo OCR: ", tiempo_carga_stop-tiemop_carga)
-    # #CLIP como filtro + OCR
-    # for img in imgs:
-    #     results = clip_filter(
-    #         dataset_clip, (model, preprocess, device), img, 5)
-    #     sku_real = int(img.split('/')[-2])
-    #     # create a subdataset ocr with the results:
+    # df_models = pd.DataFrame(columns=[
+    #                          "Modelo", "Tiempo de carga", "Tiempo por imagen", "Porcentaje de imagenes correctas"])
+    # for model_name in os.listdir("models/"):
+    #     dict_resultados = {
+    #         int(img.replace(images, "")[:6]): [] for img in imgs}
+    #     tiemop_carga = t.time()
+    #     model_name = model_name.replace(".pkl", "").replace("model_", "")
+    #     if ("preprocess" in model_name):
+    #         continue
+    #     print("Modelo: ", model_name)
+    #     model, preprocess, device = clip.load_model(model_name)
+    #     tiempo_carga_stop = t.time()
+    #     print("Tiempo de carga del modelo CLIP: ",
+    #           tiempo_carga_stop-tiemop_carga)
+    #     start_3 = t.time()
+    #     results_3, correctos = only_clip(imgs, dataset_clip, (
+    #         model, preprocess, device), dict_resultados)
+    #     end_3 = t.time()
+    #     print(
+    #         f"Tiempo de ejecucion de only_clip total {end_3-start_3} Por producto: {(end_3-start_3)/cantidad_imagenes}")
+    #     #     start_1 = t.time()
 
-    #     subdataset_ocr = df_ocr[df_ocr['SKU'].isin(results)]
-    #     if not subdataset_ocr.empty:
-    #         predict = ocr_single_recognition(img, subdataset_ocr, engine)
-    #     else:
-    #         predict = ocr_single_recognition(img, df_ocr, engine)
-    #         print("filtro no encontro resultados, se usa el dataset completo")
-    #     print(predict)
-    #     if int(predict) == sku_real:
-    #         correctos += 1
-    #     if sku_real in results:
-    #         in_filter += 1
-    # print(
-    #     f"Porcentaje de imagenes en el filtro: {100*in_filter/cantidad_imagenes}%")
-    # print(
-    #     f"Porcentaje de imagenes correctas: {100*correctos/cantidad_imagenes}%")
+    #     #     results_1 = recognition_1(imgs, dataset_clip, dataset_ocr, (
+    #     #         model, preprocess, device), engine, dict_resultados)
+    #     #     end_1 = t.time()
+    #     #     print(
+    #     #         f"Tiempo de ejecucion de clip_filter+ocr total {end_1-start_1} Por producto: {(end_1-start_1)/cantidad_imagenes}")
+    #     #     start_2 = t.time()
+    #     #     results_2 = recognition_2(imgs, dataset_clip, dataset_ocr, (
+    #     #         model, preprocess, device), engine, dict_resultados)
+    #     #     end_2 = t.time()
+    #     #     print(
+    #     #         f"Tiempo de ejecucion de ocr_filter+clip total {end_2-start_2} Por producto: {(end_2-start_2)/cantidad_imagenes}")
 
-    # # OCR como filtro + CLIP
-    # correctos = 0
-    # for img in imgs:
-    #     sku_real = int(img.split('/')[-2])
-    #     filtro_ocr = ocr_filter(img, df_ocr, engine, 5)
-    #     print(sku_real, filtro_ocr)
-    #     if sku_real in filtro_ocr:
-    #         in_filter += 1
-    #     subdf_clip = df[df['sku'].isin(filtro_ocr)]
-    #     if not subdf_clip.empty:
-    #         predict = clip_single_recognition(subdf_clip,
-    #                                           img, (model, preprocess, device))
-    #     else:
-    #         predict = clip_single_recognition(df,
-    #                                           img, (model, preprocess, device))
-    #         print("filtro no encontro resultados, se usa el dataset completo")
-    #     print(predict)
-    #     if int(predict) == sku_real:
-    #         correctos += 1
+    #     df_models = df_models.append({"Modelo": model_name, "Tiempo de carga": tiempo_carga_stop-tiemop_carga, "Tiempo por imagen": (
+    #         end_3-start_3)/cantidad_imagenes, "Porcentaje de imagenes correctas": correctos}, ignore_index=True)
+    # print(df_models)
 
-    # print(
-    #     f"Porcentaje de imagenes en el filtro: {100*in_filter/cantidad_imagenes}%")
-    # print(
-    #     f"Porcentaje de imagenes correctas: {100*correctos/cantidad_imagenes}%")
-    ocr_recognition(args.images, imgs, df_ocr)
+    # ocr_recognition(args.images, imgs, df_ocr)
+
+    dict_resultados = {
+        int(img.replace(images, "")[:6]): [] for img in imgs}
+    start_1 = t.time()
+    results_1 = recognition_1(imgs, dataset_clip, dataset_ocr, (
+        model, preprocess, device), engine, dict_resultados)
+    end_1 = t.time()
+    print(
+        f"Tiempo de ejecucion de clip_filter+ocr total {end_1-start_1} Por producto: {(end_1-start_1)/cantidad_imagenes}")
+
+    matriz_confusion(results_1, "clip_filter+ocr")
+    results_1_ = matriz_confusion_comprimida(
+        results_1, "clip_filter+ocr_comprimida")
+    generar_curvas_roc(results_1_, "clip_filter+ocr")
+
+    dict_resultados = {
+        int(img.replace(images, "")[:6]): [] for img in imgs}
+
+    start_2 = t.time()
+    results_2 = recognition_2(imgs, dataset_clip, dataset_ocr, (
+        model, preprocess, device), engine, dict_resultados)
+    end_2 = t.time()
+    print(
+        f"Tiempo de ejecucion de ocr_filter+clip total {end_2-start_2} Por producto: {(end_2-start_2)/cantidad_imagenes}")
+    matriz_confusion(results_2, "ocr_filter+clip")
+    results_2_ = matriz_confusion_comprimida(
+        results_2, "ocr_filter+clip_comprimida")
+    generar_curvas_roc(results_2_, "ocr_filter+clip")
+
+    dict_resultados = {
+        int(img.replace(images, "")[:6]): [] for img in imgs}
+
+    start_3 = t.time()
+    results_3 = only_clip(imgs, dataset_clip, (
+        model, preprocess, device), dict_resultados)
+    end_3 = t.time()
+    print(
+        f"Tiempo de ejecucion de only_clip total {end_3-start_3} Por producto: {(end_3-start_3)/cantidad_imagenes}")
+    matriz_confusion(results_3, "only_clip")
+    results_3_ = matriz_confusion_comprimida(results_3, "only_clip_comprimida")
+    generar_curvas_roc(results_3_, "only_clip")
+
+    dict_resultados = {
+        int(img.replace(images, "")[:6]): [] for img in imgs}
+
+    start_4 = t.time()
+    results_4 = only_ocr(imgs, dataset_ocr, engine, dict_resultados)
+    end_4 = t.time()
+    print(
+        f"Tiempo de ejecucion de only_ocr total {end_4-start_4} Por producto: {(end_4-start_4)/cantidad_imagenes}")
+    matriz_confusion(results_4, "only_ocr")
+    results_4_ = matriz_confusion_comprimida(results_4, "only_ocr_comprimida")
+    generar_curvas_roc(results_4_, "only_ocr")
 
 
 if __name__ == '__main__':
     main()
-    # diccionario = {
-    #     123456: [123456, 654321, 123456, 123456],
-    #     654321: [123456, 654321, 123456, 654321],
-    #     321654: [123456, 321654, 654321, 321654]}
-    # matriz = matriz_confusion(diccionario)
-    # matriz_comprimida = matriz_confusion_comprimida(diccionario)
-    # generar_curvas_roc(matriz_comprimida)
+    # dataset_clip = 'data/clip_ALIMENTO.csv'
+    # dataset_ocr = 'data/ocr_ALIMENTO.csv'
+    # SKU = '267186'
+    # images = f'img/gondolas/2P-A-BAJO.ALIMENTO/{SKU}/'
+    # images_result = 'img/gondolas/2P-A-BAJO.ALIMENTO/'
+    # imgs = glob.glob(images + '**/*.webp', recursive=True)
+
+    # df_ocr = pd.read_csv(dataset_ocr)
+    # df_clip = pd.read_csv(dataset_clip)
+    # tiempo_carga = t.time()
+    # model, preprocess, device = clip.load_model('RN50')
+    # tiempo_carga_stop = t.time()
+    # print("Tiempo de carga del modelo CLIP: ", tiempo_carga_stop-tiempo_carga)
+
+    # tiempo_carga = t.time()
+    # engine = ocr.ocr_load_model()
+    # tiempo_carga_stop = t.time()
+    # print("Tiempo de carga del modelo OCR: ", tiempo_carga_stop-tiempo_carga)
+
+    # for img in imgs:
+    #     predict_ocr = ocr_single_recognition(img, df_ocr, engine)
+    #     predict_clip = clip_single_recognition(
+    #         df_clip, img, (model, preprocess, device))
+    #     print(f"Imagen: {img} OCR: {predict_ocr} CLIP: {predict_clip}")
+    # dict_resultados = {
+    #     int(img.replace(images_result, "")[:6]): [] for img in imgs}
+    # predict_mix_1 = recognition_1(imgs, dataset_clip, dataset_ocr, (
+    #     model, preprocess, device), engine, dict_resultados)
+    # print(f'CLIP+OCR: {predict_mix_1}')
+    # dict_resultados = {
+    #     int(img.replace(images_result, "")[:6]): [] for img in imgs}
+    # predict_mix_2 = recognition_2(imgs, dataset_clip, dataset_ocr, (
+    #     model, preprocess, device), engine, dict_resultados)
+    # print(f'OCR+CLIP: {predict_mix_2}')
